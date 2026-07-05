@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  attendance-planner:
+    build: .
+    container_name: attendance_tracker
+    ports:
+      - "3082:3000" # Maps port 3082 on your Ubuntu host to port 3000 in the container
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/app/data
+    volumes:
+      # SSD / HDD setup:
+      # - The application and docker containers run on your primary SSD for high performance.
+      # - Map the left path below to the mount point of your secondary HDD to prevent data loss.
+      # Replace "/mnt/hdd/attendance_data" with your actual physical HDD directory path on Ubuntu.
+      - /mnt/hdd/attendance_data:/app/data
+    restart: unless-stopped

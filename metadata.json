@@ -1,0 +1,6 @@
+{
+  "name": "CHẤM CÔNG PC09",
+  "description": "Hệ thống quản lý chấm công, trực ban, giám định cá nhân và khai báo nghỉ phép, học tập theo tuần và tháng với lưu trữ dữ liệu theo từng tháng.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
