@@ -1244,7 +1244,7 @@ export default function App() {
                       Lịch tuần: từ {formatDayMonth(weekDays[0])} đến {formatDayMonth(weekDays[6])}
                     </h2>
                     <p className="text-xs text-slate-400 mt-1">
-                      Nhấp chọn bất kỳ ngày nào để khai báo Trực ban & Giám định vụ án
+                      Nhấp chọn ngày bất kỳ để khai báo công việc
                     </p>
                   </div>
                   
@@ -1525,9 +1525,6 @@ export default function App() {
                     <h2 className="text-lg font-bold text-slate-800">
                       Khai báo Lịch Học tập, Nghỉ phép & Nghỉ lễ
                     </h2>
-                    <p className="text-xs text-slate-400">
-                      Tự động tô màu và khóa lịch tuần/tháng (Học: xanh dương | Nghỉ phép: màu đỏ | Nghỉ lễ: màu hồng)
-                    </p>
                   </div>
                 </div>
 
@@ -1554,7 +1551,7 @@ export default function App() {
                             }`}
                           >
                             <Palmtree className="w-3 h-3" />
-                            <span>Nghỉ phép (Đỏ)</span>
+                            <span>Nghỉ phép</span>
                           </button>
                           <button
                             type="button"
@@ -1566,7 +1563,7 @@ export default function App() {
                             }`}
                           >
                             <GraduationCap className="w-3 h-3" />
-                            <span>Học tập (Xanh)</span>
+                            <span>Học tập</span>
                           </button>
                           <button
                             type="button"
@@ -1578,7 +1575,7 @@ export default function App() {
                             }`}
                           >
                             <Gift className="w-3 h-3" />
-                            <span>Nghỉ lễ (Hồng)</span>
+                            <span>Nghỉ lễ</span>
                           </button>
                         </div>
                       </div>
@@ -1916,9 +1913,6 @@ export default function App() {
                     <p className="text-xs font-bold text-amber-900">
                       Trực ban cuối tuần
                     </p>
-                    <p className="text-[10px] text-amber-700">
-                      Vàng + Thứ 7, Chủ Nhật trong tháng
-                    </p>
                   </div>
                   <div className="text-right">
                     <span className="text-xl font-black text-amber-800">
@@ -2052,7 +2046,7 @@ export default function App() {
                     className="mt-0.5 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
                   />
                   <div>
-                    <p className="text-xs font-bold text-slate-700">Trực ban (Kíp trực cơ quan)</p>
+                    <p className="text-xs font-bold text-slate-700">Trực ban</p>
                     <p className="text-[10px] text-slate-400">Nếu vào Thứ 7/CN sẽ được tính là trực ban cuối tuần</p>
                   </div>
                 </label>
@@ -2066,7 +2060,7 @@ export default function App() {
                     className="mt-0.5 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
                   />
                   <div>
-                    <p className="text-xs font-bold text-slate-700">Giám định chuyên môn pháp y</p>
+                    <p className="text-xs font-bold text-slate-700">Giám định</p>
                     <p className="text-[10px] text-slate-400 font-mono">Bổ sung thông tin vụ số & thời lượng giờ</p>
                   </div>
                 </label>
