@@ -98,6 +98,78 @@ function isDateInPeriods(dateStr: string, periods: Array<{ startDate: string; en
   });
 }
 
+// Helper function to get filename for user-specific unified declarations
+function getDeclarationsFilePath(username: string): string {
+  const safeUsername = username.replace(/[^a-zA-Z0-9_-]/g, "");
+  return path.join(DATA_DIR, `declarations-${safeUsername}.json`);
+}
+
+// Load unified declarations, migrating from existing month-specific files if first-time setup
+function loadDeclarations(username: string): { study: any[]; vacation: any[]; holiday: any[] } {
+  const filePath = getDeclarationsFilePath(username);
+  if (fs.existsSync(filePath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      return {
+        study: data.study || [],
+        vacation: data.vacation || [],
+        holiday: data.holiday || []
+      };
+    } catch (e) {
+      console.error("Error reading declarations file:", e);
+    }
+  }
+
+  // Fallback / One-time migration: crawl existing monthly files to collect previous declarations
+  const declarations = { study: [] as any[], vacation: [] as any[], holiday: [] as any[] };
+  try {
+    const safeUsername = username.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (fs.existsSync(DATA_DIR)) {
+      const files = fs.readdirSync(DATA_DIR);
+      const prefix = `attendance-${safeUsername}-`;
+      const seenIds = new Set<string>();
+
+      files.forEach(file => {
+        if (file.startsWith(prefix) && file.endsWith(".json")) {
+          try {
+            const content = fs.readFileSync(path.join(DATA_DIR, file), "utf-8");
+            const data = JSON.parse(content);
+            if (data.declarations) {
+              ["study", "vacation", "holiday"].forEach(type => {
+                if (Array.isArray(data.declarations[type])) {
+                  data.declarations[type].forEach((dec: any) => {
+                    if (dec && dec.id && !seenIds.has(dec.id)) {
+                      seenIds.add(dec.id);
+                      (declarations as any)[type].push(dec);
+                    }
+                  });
+                }
+              });
+            }
+          } catch (err) {
+            // ignore corrupt files
+          }
+        }
+      });
+
+      // If we recovered any declarations, save them now to establish the central file
+      if (declarations.study.length > 0 || declarations.vacation.length > 0 || declarations.holiday.length > 0) {
+        saveDeclarations(username, declarations);
+      }
+    }
+  } catch (e) {
+    console.error("Migration of declarations failed:", e);
+  }
+
+  return declarations;
+}
+
+// Save unified declarations to separate file
+function saveDeclarations(username: string, declarations: { study: any[]; vacation: any[]; holiday: any[] }) {
+  const filePath = getDeclarationsFilePath(username);
+  fs.writeFileSync(filePath, JSON.stringify(declarations, null, 2), "utf-8");
+}
+
 // Calculate cumulative YTD overtime hours for a given month and user (from Jan of that year up to the current month)
 function calculateCumulativeOvertime(username: string, targetMonthStr: string): number {
   try {
@@ -109,6 +181,12 @@ function calculateCumulativeOvertime(username: string, targetMonthStr: string): 
 
     let totalOvertime = 0;
 
+    // Load centralized/unified declarations
+    const declarations = loadDeclarations(username);
+    const studyPeriods = declarations.study || [];
+    const vacationPeriods = declarations.vacation || [];
+    const holidayPeriods = declarations.holiday || [];
+
     // Scan months from 01 up to targetMonth
     for (let m = 1; m <= targetMonth; m++) {
       const monthStr = `${year}-${String(m).padStart(2, "0")}`;
@@ -117,10 +195,6 @@ function calculateCumulativeOvertime(username: string, targetMonthStr: string): 
       if (fs.existsSync(filePath)) {
         const fileContent = fs.readFileSync(filePath, "utf-8");
         const monthData = JSON.parse(fileContent);
-
-        const studyPeriods = monthData.declarations?.study || [];
-        const vacationPeriods = monthData.declarations?.vacation || [];
-        const holidayPeriods = monthData.declarations?.holiday || [];
 
         if (monthData.days) {
           Object.entries(monthData.days).forEach(([dateStr, dayData]: [string, any]) => {
@@ -163,6 +237,10 @@ function calculateCumulativeVacationDays(username: string, targetMonthStr: strin
 
     let totalVacationDays = 0;
 
+    // Load centralized/unified declarations
+    const declarations = loadDeclarations(username);
+    const vacationPeriods = declarations.vacation || [];
+
     // Determine the list of year-month pairs to scan for the cycle
     const monthsToScan: { y: number; m: number }[] = [];
     if (targetMonth >= 4) {
@@ -180,23 +258,13 @@ function calculateCumulativeVacationDays(username: string, targetMonthStr: strin
       }
     }
 
-    // Scan each month in the cycle
+    // Scan each month in the cycle checking for vacation day status
     for (const { y, m } of monthsToScan) {
-      const monthStr = `${y}-${String(m).padStart(2, "0")}`;
-      const filePath = getMonthFilePathForUser(username, monthStr);
-
-      if (fs.existsSync(filePath)) {
-        const fileContent = fs.readFileSync(filePath, "utf-8");
-        const monthData = JSON.parse(fileContent);
-
-        const vacationPeriods = monthData.declarations?.vacation || [];
-
-        const totalDaysInM = new Date(y, m, 0).getDate();
-        for (let day = 1; day <= totalDaysInM; day++) {
-          const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          if (isDateInPeriods(dateStr, vacationPeriods)) {
-            totalVacationDays++;
-          }
+      const totalDaysInM = new Date(y, m, 0).getDate();
+      for (let day = 1; day <= totalDaysInM; day++) {
+        const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (isDateInPeriods(dateStr, vacationPeriods)) {
+          totalVacationDays++;
         }
       }
     }
@@ -329,11 +397,6 @@ app.get("/api/attendance", (req, res) => {
     const filePath = getMonthFilePathForUser(username, month);
     let data: any = {
       month,
-      declarations: {
-        study: [],
-        vacation: [],
-        holiday: []
-      },
       days: {}
     };
 
@@ -342,14 +405,8 @@ app.get("/api/attendance", (req, res) => {
       data = JSON.parse(fileContent);
     }
 
-    // Ensure fields exist
-    if (!data.declarations) {
-      data.declarations = { study: [], vacation: [], holiday: [] };
-    }
-    if (!data.declarations.study) data.declarations.study = [];
-    if (!data.declarations.vacation) data.declarations.vacation = [];
-    if (!data.declarations.holiday) data.declarations.holiday = [];
-    if (!data.days) data.days = {};
+    // Load centralized declarations instead of month-specific ones
+    const declarations = loadDeclarations(username);
 
     // Calculate YTD cumulative overtime
     const cumulativeOvertime = calculateCumulativeOvertime(username, month);
@@ -357,7 +414,9 @@ app.get("/api/attendance", (req, res) => {
     const cumulativeVacation = calculateCumulativeVacationDays(username, month);
 
     res.json({
-      ...data,
+      month,
+      declarations,
+      days: data.days || {},
       cumulativeOvertime,
       cumulativeVacation
     });
@@ -382,11 +441,15 @@ app.post("/api/attendance", (req, res) => {
   }
 
   try {
+    // Save to centralized declarations
+    if (declarations) {
+      saveDeclarations(username, declarations);
+    }
+
     const filePath = getMonthFilePathForUser(username, month);
 
     const dataToSave = {
       month,
-      declarations: declarations || { study: [], vacation: [], holiday: [] },
       days: days || {}
     };
 
@@ -543,11 +606,6 @@ app.get("/api/admin/attendance", (req, res) => {
     const filePath = getMonthFilePathForUser(targetUsername, month);
     let data: any = {
       month,
-      declarations: {
-        study: [],
-        vacation: [],
-        holiday: []
-      },
       days: {}
     };
 
@@ -556,19 +614,16 @@ app.get("/api/admin/attendance", (req, res) => {
       data = JSON.parse(fileContent);
     }
 
-    if (!data.declarations) {
-      data.declarations = { study: [], vacation: [], holiday: [] };
-    }
-    if (!data.declarations.study) data.declarations.study = [];
-    if (!data.declarations.vacation) data.declarations.vacation = [];
-    if (!data.declarations.holiday) data.declarations.holiday = [];
-    if (!data.days) data.days = {};
+    // Load centralized declarations instead of month-specific ones
+    const declarations = loadDeclarations(targetUsername);
 
     const cumulativeOvertime = calculateCumulativeOvertime(targetUsername, month);
     const cumulativeVacation = calculateCumulativeVacationDays(targetUsername, month);
 
     res.json({
-      ...data,
+      month,
+      declarations,
+      days: data.days || {},
       cumulativeOvertime,
       cumulativeVacation
     });
@@ -593,11 +648,15 @@ app.post("/api/admin/attendance", (req, res) => {
 
   const targetUsername = targetUser.trim().toLowerCase();
   try {
+    // Save to centralized declarations
+    if (declarations) {
+      saveDeclarations(targetUsername, declarations);
+    }
+
     const filePath = getMonthFilePathForUser(targetUsername, month);
 
     const dataToSave = {
       month,
-      declarations: declarations || { study: [], vacation: [], holiday: [] },
       days: days || {}
     };
 
